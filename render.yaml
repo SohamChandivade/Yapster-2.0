@@ -2,11 +2,11 @@
 # database lives on Neon (free tier, pgvector, no expiry; Render's free Postgres is deleted
 # after 30 days). Full walkthrough: README.md, "Deploy".
 #
-# Before applying: replace the two URLs below with your real Render and Vercel hostnames.
+# The two URLs below are the live Render and Vercel hostnames; change them if you rename either.
 # Secrets (sync: false) are entered once in the Render dashboard and never stored here.
 services:
   - type: web
-    name: yapster-api
+    name: yapster-2-0
     runtime: docker
     rootDir: api
     dockerfilePath: ./Dockerfile
@@ -19,13 +19,11 @@ services:
         value: prod
       - key: CORS_ALLOW_PRIVATE_NETWORKS
         value: "false"
-      # JSON list. Must contain the exact Vercel origin (no trailing slash).
-      - key: CORS_ORIGINS
-        value: '["https://yapster.vercel.app"]'
       - key: PUBLIC_API_URL
-        value: https://yapster-api.onrender.com
+        value: https://yapster-2-0.onrender.com
+      # The web app's origin; it is also the CORS allow-list (CORS_ORIGINS adds extras).
       - key: PUBLIC_WEB_URL
-        value: https://yapster.vercel.app
+        value: https://yapster-2-0.vercel.app
       - key: DATABASE_URL
         sync: false # Neon connection string, pasted as-is (sslmode is handled)
       - key: GEMINI_API_KEY

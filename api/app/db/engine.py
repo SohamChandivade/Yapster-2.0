@@ -58,8 +58,12 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def check_db(timeout_s: float = 2.0) -> bool:
-    """True when the database answers SELECT 1 within the timeout."""
+async def check_db(timeout_s: float = 5.0) -> bool:
+    """True when the database answers SELECT 1 within the timeout.
+
+    Five seconds, not two: a hosted database that scaled to zero (Neon) needs a moment to
+    wake, and the health check is the first thing to hit it after idle.
+    """
     try:
         async with asyncio.timeout(timeout_s), get_engine().connect() as conn:
             await conn.execute(text("SELECT 1"))

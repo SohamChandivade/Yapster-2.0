@@ -22,9 +22,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Yapster API", version=__version__, lifespan=lifespan)
+    # The web app's own origin is always allowed, so PUBLIC_WEB_URL alone is enough in production.
+    origins = list(dict.fromkeys([*settings.cors_origins, settings.public_web_url.rstrip("/")]))
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=origins,
         allow_origin_regex=PRIVATE_ORIGIN_REGEX if settings.cors_allow_private_networks else None,
         allow_credentials=True,
         allow_methods=["*"],

@@ -86,6 +86,17 @@ class Settings(BaseSettings):
     def _asyncpg_url(cls, value: str) -> str:
         return normalize_database_url(value)
 
+    @field_validator("cors_origins")
+    @classmethod
+    def _bare_origins(cls, value: list[str]) -> list[str]:
+        """Browsers send the Origin header without a trailing slash or path; match that."""
+        return [v.strip().rstrip("/") for v in value if v.strip()]
+
+    @field_validator("public_api_url", "public_web_url")
+    @classmethod
+    def _no_trailing_slash(cls, value: str) -> str:
+        return value.strip().rstrip("/")
+
 
 @lru_cache
 def get_settings() -> Settings:
