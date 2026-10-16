@@ -9,6 +9,9 @@ import { type NextRequest, NextResponse } from "next/server";
  * internals and static files are skipped in code instead.
  */
 const PUBLIC = new Set(["/welcome", "/login", "/register"]);
+// Always served: the OAuth hand-off must be able to set a fresh session, and the service
+// worker precaches the offline page before anyone is necessarily signed in.
+const ALWAYS = new Set(["/auth/callback", "/offline"]);
 const TOKEN_COOKIE = "yapster_token";
 const ONBOARDED_COOKIE = "yapster_onboarded";
 
@@ -18,9 +21,7 @@ function isAsset(pathname: string): boolean {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (isAsset(pathname)) return NextResponse.next();
-  // The OAuth hand-off page must always run so it can set a fresh session.
-  if (pathname === "/auth/callback") return NextResponse.next();
+  if (isAsset(pathname) || ALWAYS.has(pathname)) return NextResponse.next();
 
   const signedIn = Boolean(req.cookies.get(TOKEN_COOKIE)?.value);
   const onboarded = req.cookies.get(ONBOARDED_COOKIE)?.value === "1";

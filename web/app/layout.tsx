@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { PwaRegister } from "@/components/pwa/PwaRegister";
 import { themeInitScript } from "@/lib/theme-script";
 import "../styles/globals.css";
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
   title: "Yapster",
   description: "Practise German by talking to a tutor who remembers you.",
   applicationName: "Yapster",
+  // manifest.ts, icon.png and apple-icon.png in app/ are linked automatically by Next.
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Yapster" },
   formatDetection: { telephone: false },
 };
@@ -33,7 +35,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-dvh text-ink">{children}</body>
+      <body className="min-h-dvh text-ink">
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

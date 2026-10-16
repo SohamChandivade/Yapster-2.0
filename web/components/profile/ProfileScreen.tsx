@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { InstallCard } from "@/components/pwa/InstallCard";
 import { Backdrop } from "@/components/ui/Backdrop";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ChevronRightIcon } from "@/components/ui/icons";
@@ -89,6 +90,11 @@ export function ProfileScreen() {
             </div>
           ))}
         </GlassCard>
+      </section>
+
+      <section className="mt-6" aria-label="App">
+        <p className="mb-3 text-[12px] text-ink-muted">App</p>
+        <InstallCard />
       </section>
 
       <section className="mt-6" aria-label="Account">

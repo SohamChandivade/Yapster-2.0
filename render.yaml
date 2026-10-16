@@ -1,0 +1,40 @@
+# Render Blueprint for the API. The web app deploys on Vercel (root directory: web) and the
+# database lives on Neon (free tier, pgvector, no expiry; Render's free Postgres is deleted
+# after 30 days). Full walkthrough: README.md, "Deploy".
+#
+# Before applying: replace the two URLs below with your real Render and Vercel hostnames.
+# Secrets (sync: false) are entered once in the Render dashboard and never stored here.
+services:
+  - type: web
+    name: yapster-api
+    runtime: docker
+    rootDir: api
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore # pick the region nearest you, and the same one for the Neon database
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: CORS_ALLOW_PRIVATE_NETWORKS
+        value: "false"
+      # JSON list. Must contain the exact Vercel origin (no trailing slash).
+      - key: CORS_ORIGINS
+        value: '["https://yapster.vercel.app"]'
+      - key: PUBLIC_API_URL
+        value: https://yapster-api.onrender.com
+      - key: PUBLIC_WEB_URL
+        value: https://yapster.vercel.app
+      - key: DATABASE_URL
+        sync: false # Neon connection string, pasted as-is (sslmode is handled)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

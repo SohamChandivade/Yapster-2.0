@@ -1,16 +1,41 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Level = Literal["A0", "A1", "A2", "B1", "B2", "C1", "C2"]  # A0 = just starting, below A1
+
+
+def normalize_database_url(url: str) -> str:
+    """Accept the URL shapes hosted Postgres providers hand out and make them asyncpg-ready.
+
+    - ``postgres://`` and ``postgresql://`` become ``postgresql+asyncpg://``.
+    - ``sslmode`` and ``channel_binding`` (Neon, Render, Supabase) are libpq options, not
+      asyncpg keywords: ``sslmode=require|verify-*`` becomes ``ssl=require``, ``disable``
+      becomes ``ssl=disable``, and ``channel_binding`` is dropped.
+    """
+    parts = urlsplit(url)
+    scheme = parts.scheme
+    if scheme in ("postgres", "postgresql"):
+        scheme = "postgresql+asyncpg"
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    sslmode = query.pop("sslmode", None)
+    query.pop("channel_binding", None)
+    if "ssl" not in query:
+        if sslmode in ("require", "verify-ca", "verify-full"):
+            query["ssl"] = "require"
+        elif sslmode == "disable":
+            query["ssl"] = "disable"
+    return urlunsplit((scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 class Settings(BaseSettings):
     """Runtime configuration from the environment or a .env file.
 
     Reads ../.env (repo root, shared with docker compose) then ./.env (api/),
-    with the later file winning.
+    with the later file winning. Hosted runs (Render) set plain environment variables.
     """
 
     model_config = SettingsConfigDict(
@@ -23,6 +48,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://yapster:yapster@localhost:5432/yapster"
     cors_origins: list[str] = ["http://localhost:3000"]
     # Dev convenience: also accept any private-network origin (the phone on the hotspot).
+    # Set to false in production.
     cors_allow_private_networks: bool = True
     # Accounts: email + password, opaque bearer tokens (see services/auth_service.py).
     auth_token_days: int = 30
@@ -51,6 +77,11 @@ class Settings(BaseSettings):
 
     # Local sentence-transformers model dimension (multilingual-e5-small = 384).
     embedding_dim: int = 384
+
+    @field_validator("database_url")
+    @classmethod
+    def _asyncpg_url(cls, value: str) -> str:
+        return normalize_database_url(value)
 
 
 @lru_cache
