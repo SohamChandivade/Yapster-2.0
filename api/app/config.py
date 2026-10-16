@@ -46,6 +46,9 @@ class Settings(BaseSettings):
 
     app_env: Literal["dev", "test", "prod"] = "dev"
     database_url: str = "postgresql+asyncpg://yapster:yapster@localhost:5432/yapster"
+    # The test suite creates and wipes a throwaway "yapster_test" database on this server.
+    # Keep it local (docker compose) even when database_url points at a hosted database.
+    test_database_url: str = "postgresql+asyncpg://yapster:yapster@localhost:5432/yapster"
     cors_origins: list[str] = ["http://localhost:3000"]
     # Dev convenience: also accept any private-network origin (the phone on the hotspot).
     # Set to false in production.
@@ -78,7 +81,7 @@ class Settings(BaseSettings):
     # Local sentence-transformers model dimension (multilingual-e5-small = 384).
     embedding_dim: int = 384
 
-    @field_validator("database_url")
+    @field_validator("database_url", "test_database_url")
     @classmethod
     def _asyncpg_url(cls, value: str) -> str:
         return normalize_database_url(value)

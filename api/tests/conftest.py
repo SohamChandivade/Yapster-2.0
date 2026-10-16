@@ -12,8 +12,10 @@ from sqlalchemy import text
 
 from app.config import Settings, get_settings
 
-# Point the app at a throwaway database before anything caches settings.
-_BASE_URL = Settings().database_url
+# Point the app at a throwaway database before anything caches settings. Tests always use the
+# local server from TEST_DATABASE_URL (docker compose by default), never DATABASE_URL, which
+# may be the hosted Neon database holding real sessions.
+_BASE_URL = Settings().test_database_url
 TEST_DB = "yapster_test"
 os.environ["DATABASE_URL"] = re.sub(r"/[^/?]+(\?.*)?$", f"/{TEST_DB}", _BASE_URL)
 os.environ["APP_ENV"] = "test"

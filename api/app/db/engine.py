@@ -1,5 +1,8 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator
+from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -11,14 +14,34 @@ from sqlalchemy.ext.asyncio import (
 
 from app.config import get_settings
 
+log = logging.getLogger("yapster.db")
+
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
+
+
+def connect_args(url: str) -> dict[str, Any]:
+    """Extra asyncpg arguments for the given URL.
+
+    Neon's pooled endpoint ("-pooler" host) is PgBouncer in transaction mode, which cannot
+    reuse asyncpg's named prepared statements across server connections. Disable the cache
+    and give every statement a unique name so it works anyway. Prefer the direct endpoint:
+    the API keeps its own small pool and needs none of this.
+    """
+    if "-pooler." not in url:
+        return {}
+    log.warning("DATABASE_URL uses a pooled endpoint; Neon's direct connection string is simpler")
+    return {
+        "statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    }
 
 
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
-        _engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+        url = get_settings().database_url
+        _engine = create_async_engine(url, pool_pre_ping=True, connect_args=connect_args(url))
     return _engine
 
 
