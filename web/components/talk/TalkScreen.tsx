@@ -1,11 +1,15 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Backdrop } from "@/components/ui/Backdrop";
 import { Blob, type BlobExpression } from "@/components/ui/Blob";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, SpeakerIcon, SpeakerOffIcon } from "@/components/ui/icons";
 import { IconPill, Pill, PillLink } from "@/components/ui/Pill";
+import { cn } from "@/lib/cn";
+import { speaker, useSpeakerStore } from "@/lib/speech/speaker";
+import { useSpeechInput } from "@/lib/speech/useSpeechInput";
 import { type TalkStatus, useTalkStore } from "@/lib/talkStore";
 import { CorrectionsDrawer } from "./CorrectionsDrawer";
 import { DifficultyPill } from "./DifficultyPill";
@@ -41,19 +45,30 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
   const { start, send, nudge, loadCorrections, end, discard, dismissError, reset } =
     useTalkStore.getState();
 
+  const voice = useSpeakerStore();
+  const mic = useSpeechInput((text) => void send(text));
+
   const [helpOpen, setHelpOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
+    speaker.init();
     void start(scenario);
     return () => reset();
   }, [scenario, start, reset]);
 
+  // Starting to talk interrupts Lena.
+  useEffect(() => {
+    if (mic.listening) speaker.cancel();
+  }, [mic.listening]);
+
   const busy =
     status === "starting" || status === "thinking" || status === "speaking" || status === "ending";
   const saidSomething = lines.some((l) => l.role === "user");
+  const blobSpeaking = voice.speaking || status === "speaking";
+  const blobExpression: BlobExpression = mic.listening ? "neutral" : expressionFor[status];
 
   async function finish() {
     setLeaving(true);
@@ -73,6 +88,9 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
     else void leave();
   }
 
+  const notice = error ?? mic.error;
+  const dismissNotice = error ? dismissError : mic.dismissError;
+
   return (
     <main
       className="relative mx-auto flex h-dvh max-w-[480px] flex-col px-6"
@@ -90,24 +108,61 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
           </IconPill>
           <DifficultyPill level={level} disabled={!sessionId || busy} onNudge={(d) => void nudge(d)} />
         </div>
-        <NotesChip
-          count={correctionCount}
-          onClick={() => {
-            void loadCorrections();
-            setNotesOpen(true);
-          }}
-        />
+        <div className="flex items-center gap-2">
+          {voice.available && (
+            <IconPill
+              size={40}
+              aria-label={voice.enabled ? "Voice on" : "Voice off"}
+              aria-pressed={voice.enabled}
+              onClick={() => speaker.setEnabled(!voice.enabled)}
+              className={cn(!voice.enabled && "text-ink-muted")}
+            >
+              {voice.enabled ? <SpeakerIcon className="h-5 w-5" /> : <SpeakerOffIcon className="h-5 w-5" />}
+            </IconPill>
+          )}
+          <NotesChip
+            count={correctionCount}
+            onClick={() => {
+              void loadCorrections();
+              setNotesOpen(true);
+            }}
+          />
+        </div>
       </header>
 
       <section className="flex min-h-0 flex-1 flex-col items-center">
-        <div className="mt-5 shrink-0">
-          <Blob size={150} expression={expressionFor[status]} speaking={status === "speaking"} />
+        <div className="relative mt-5 shrink-0">
+          <AnimatePresence>
+            {mic.listening && (
+              <motion.span
+                aria-hidden
+                className="absolute -inset-3 rounded-full border-2 border-[#E8557E]/70"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: [0.8, 0.3, 0.8], scale: [1, 1.08, 1] }}
+                exit={{ opacity: 0, scale: 1.1 }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+            )}
+          </AnimatePresence>
+          <Blob size={150} expression={blobExpression} speaking={blobSpeaking} />
         </div>
         <p className="mt-3 shrink-0 text-[12px] text-ink-muted">
           {status === "starting" || status === "idle"
             ? "Connecting…"
-            : `${tutorName} · ${scenarioTitle}`}
+            : mic.listening
+              ? "Listening…"
+              : `${tutorName} · ${scenarioTitle}`}
         </p>
+
+        {voice.needsTap && (
+          <button
+            type="button"
+            onClick={speaker.tapToPlay}
+            className="glass-strong mt-3 shrink-0 rounded-pill px-3.5 py-1.5 text-[12px] font-medium"
+          >
+            Tap to hear {tutorName || "Lena"}
+          </button>
+        )}
 
         {status === "failed" ? (
           <div className="mt-8 flex flex-col items-center text-center">
@@ -123,13 +178,13 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
           <Transcript lines={lines} speaking={status === "speaking"} className="mt-5 min-h-0 flex-1" />
         )}
 
-        {error && status !== "failed" && (
+        {notice && status !== "failed" && (
           <button
             type="button"
-            onClick={dismissError}
+            onClick={dismissNotice}
             className="glass-strong mt-2 shrink-0 rounded-pill px-3 py-1.5 text-[12px] text-ink-muted"
           >
-            {error} · tap to dismiss
+            {notice} · tap to dismiss
           </button>
         )}
       </section>
@@ -138,6 +193,7 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
         <TalkBar
           disabled={status !== "ready"}
           busy={busy}
+          mic={mic}
           onSend={(t) => void send(t)}
           onHelp={() => setHelpOpen(true)}
           onEnd={() => void finish()}

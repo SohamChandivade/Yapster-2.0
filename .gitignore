@@ -28,3 +28,7 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# local dev certificates
+certs/
+web/public/yapster-dev-ca.pem

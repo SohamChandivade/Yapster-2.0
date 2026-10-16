@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { api, ApiError, type Correction } from "./api";
+import { SentenceSplitter, splitSentences } from "./speech/sentences";
+import { speaker } from "./speech/speaker";
 
 export type Line = { id: string; role: "tutor" | "user"; text: string; assisted?: boolean };
 
@@ -77,6 +79,7 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
         status: "ready",
         lines: [{ id: nextId(), role: "tutor", text: s.opening }],
       });
+      splitSentences(s.opening).forEach((sentence) => speaker.say(sentence));
     } catch (err) {
       set({ status: "failed", error: describe(err) });
     }
@@ -87,7 +90,10 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
     const clean = text.trim();
     if (!sessionId || status !== "ready" || !clean) return;
 
+    speaker.cancel();
     const pendingId = nextId();
+    const splitter = new SentenceSplitter();
+    let streamed = false;
     set({
       status: "thinking",
       error: null,
@@ -97,6 +103,8 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
     try {
       for await (const ev of api.turn(sessionId, clean, assisted)) {
         if (ev.event === "delta") {
+          streamed = true;
+          splitter.push(ev.data.text).forEach((sentence) => speaker.say(sentence));
           set((s) => {
             const has = s.lines.some((l) => l.id === pendingId);
             const next = has
@@ -105,6 +113,9 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
             return { status: "speaking", lines: next };
           });
         } else if (ev.event === "done") {
+          const rest = splitter.flush();
+          if (rest) speaker.say(rest);
+          if (!streamed) splitSentences(ev.data.reply_de).forEach((s) => speaker.say(s));
           set((s) => ({
             status: "ready",
             level: ev.data.level,
@@ -114,6 +125,7 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
               : [...s.lines, { id: pendingId, role: "tutor" as const, text: ev.data.reply_de }],
           }));
         } else if (ev.event === "error") {
+          speaker.cancel();
           set((s) => ({
             status: "ready",
             error: ev.data.message,
@@ -123,6 +135,7 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
       }
       if (get().status !== "ready") set({ status: "ready" });
     } catch (err) {
+      speaker.cancel();
       set((s) => ({
         status: "ready",
         error: describe(err),
@@ -155,6 +168,7 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
   async end() {
     const { sessionId, status } = get();
     if (!sessionId || status === "ending" || status === "ended") return sessionId;
+    speaker.cancel();
     set({ status: "ending", error: null });
     try {
       await api.end(sessionId);
@@ -168,6 +182,7 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
 
   async discard() {
     const { sessionId, status } = get();
+    speaker.cancel();
     if (sessionId && status !== "ended") {
       try {
         await api.discard(sessionId);
@@ -179,5 +194,9 @@ export const useTalkStore = create<State & Actions>((set, get) => ({
   },
 
   dismissError: () => set({ error: null }),
-  reset: () => set({ ...initial }),
+
+  reset: () => {
+    speaker.cancel();
+    set({ ...initial });
+  },
 }));

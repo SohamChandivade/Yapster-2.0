@@ -12,7 +12,10 @@ export function apiUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (configured) return configured.replace(/\/$/, "");
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
+    // Plain dev runs on 3000/8000; the HTTPS pair for the phone's microphone on 3443/8443.
+    const { protocol, hostname } = window.location;
+    const port = protocol === "https:" ? 8443 : 8000;
+    return `${protocol}//${hostname}:${port}`;
   }
   return "http://localhost:8000";
 }

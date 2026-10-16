@@ -30,4 +30,10 @@ npm run dev                                 # http://localhost:3000
 npm run lint && npm run typecheck
 npx playwright install chromium             # once
 npm run test:e2e                            # 390×844 mobile flows
+
+# Voice on a phone needs HTTPS (microphone = secure context):
+npm run certs                               # once per network; CA lands in web/public/
+npm run dev:https                           # https://<laptop-ip>:3443
+cd ../api && uv run uvicorn app.main:app --host 0.0.0.0 --port 8443 --ssl-keyfile ../certs/dev-key.pem --ssl-certfile ../certs/dev-cert.pem
+# On the phone: open https://<laptop-ip>:3443/yapster-dev-ca.pem, install it as a CA certificate, then open https://<laptop-ip>:3443
 ```

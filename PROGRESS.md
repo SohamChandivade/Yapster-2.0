@@ -5,6 +5,13 @@ Architectural decisions live in `CLAUDE.md` §11; this file is the narrative.
 
 ---
 
+## 2026-10-16 (second session)
+
+- Google sign-in verified live by the user (after registering the redirect URI). First commit `14e2d92` pushed to the private repo https://github.com/UjjwalArote69/Yapster-2.0.
+- Talk screen got a Back button: discards an empty session, or offers recap / discard / keep talking once something was said (`DELETE /sessions/{id}`).
+- Background glows now drift and breathe (transform-only keyframes, off under reduced motion).
+- **Milestone 3, voice**: tap-to-talk German speech recognition, replies spoken sentence by sentence while streaming, Blob pulsing with speech, voice on/off toggle, "tap to hear" fallback when the browser blocks autoplay, HTTPS dev pair (3443/8443) with a local CA so the phone may use the microphone. Web tests: 32 Playwright flows.
+
 ## 2026-10-15 → 2026-10-16 (first build session)
 
 One long session, from an empty folder with a brief and five reference images to a

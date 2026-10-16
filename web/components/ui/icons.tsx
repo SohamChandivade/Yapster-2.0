@@ -124,3 +124,30 @@ export function SparkleIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function MicIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+    </svg>
+  );
+}
+
+export function SpeakerIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M4 10v4h3l4 3V7L7 10H4z" />
+      <path d="M15 9.5a3.5 3.5 0 0 1 0 5M17.5 7a7 7 0 0 1 0 10" />
+    </svg>
+  );
+}
+
+export function SpeakerOffIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M4 10v4h3l4 3V7L7 10H4z" />
+      <path d="M16 9l5 5M21 9l-5 5" />
+    </svg>
+  );
+}
