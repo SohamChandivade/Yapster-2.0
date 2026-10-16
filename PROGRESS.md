@@ -7,10 +7,51 @@ Architectural decisions live in `CLAUDE.md` §11; this file is the narrative.
 
 ## 2026-10-16 (second session)
 
-- Google sign-in verified live by the user (after registering the redirect URI). First commit `14e2d92` pushed to the private repo https://github.com/UjjwalArote69/Yapster-2.0.
-- Talk screen got a Back button: discards an empty session, or offers recap / discard / keep talking once something was said (`DELETE /sessions/{id}`).
-- Background glows now drift and breathe (transform-only keyframes, off under reduced motion).
-- **Milestone 3, voice**: tap-to-talk German speech recognition, replies spoken sentence by sentence while streaming, Blob pulsing with speech, voice on/off toggle, "tap to hear" fallback when the browser blocks autoplay, HTTPS dev pair (3443/8443) with a local CA so the phone may use the microphone. Web tests: 32 Playwright flows.
+### Timeline
+
+| # | Block | Outcome |
+|---|---|---|
+| 1 | Restart after Docker came back | Postgres healthy at migration head, Google credentials found in `.env`, both servers up |
+| 2 | Google sign-in, live | First attempt failed with `redirect_uri_mismatch`; the user registered `http://localhost:8000/auth/google/callback` in Google Cloud Console and sign-in then worked end to end |
+| 3 | Leaving a conversation | Talk had no way back. Added a Back button: an empty session is discarded (`DELETE /sessions/{id}`), otherwise a sheet offers recap / discard / keep talking. API 30 tests |
+| 4 | Animated background | Glows drift and breathe on three staggered transform-only keyframe paths; off under reduced motion. First version did nothing because Tailwind drops dynamically-named utilities; now plain CSS classes |
+| 5 | First commit | `14e2d92`, 135 files, pushed to the new private repo https://github.com/UjjwalArote69/Yapster-2.0 (created with the GitHub CLI). `.gitattributes` pins LF |
+| 6 | Language question | Answered: the engine is language-agnostic, German lives in prompts, scenarios, a few UI strings and the speech code; plan for a per-language registry noted. Speech language is now a single constant |
+| 7 | **Milestone 3, voice** | Tap-to-talk German recognition, replies spoken sentence by sentence while streaming, Blob pulses with speech and shows a listening ring, voice on/off persisted, "tap to hear" fallback when autoplay is blocked, text-only mode when recognition is missing |
+| 8 | HTTPS for the phone | `npm run certs` builds a local CA + server cert for localhost and the LAN IPs; `npm run dev:https` on 3443 with the API on 8443; the client picks the API port from the page protocol. Chains verified with OpenSSL; a real Talk over HTTPS confirmed secure context, API on 8443, mic and voice controls, Lena's opening line |
+| 9 | Second commit | `ce8eb6b`, 16 files, pushed. Web tests: 32 Playwright flows (4 voice flows with fake Web Speech APIs) |
+| 10 | Shutdown | The user stopped all four dev servers (3000, 8000, 3443, 8443) |
+| 12 | **Dashboard made fully live** | `GET /progress`, play counts on `/scenarios`, `open_session` on `/dashboard`; real Progress screen (calendar, weak-spot small multiples, vocabulary line, history) and Scenarios grid; Home links all work; unfinished talks can be continued or discarded. Chart colours validated with the dataviz script. API 32 tests, web 38 flows |
+| 11 | **Hints for absolute beginners** | New `A0` level, `reply_en` in every tutor turn (stored in `messages.text_en_hint`), `POST /sessions/{id}/hint` with three suggested replies, Hint chip + sheet with listen/use buttons and a "show English under Lena's lines" mode. API 30 tests, web 33 flows |
+| 13 | Hint chip that never disappears | Reported as "once I used it, it disappears". Live repro showed it coming back, but it was unmounted while a turn ran and a failed hint left the sheet blank. Now every tutor line keeps a chip (prominent on the latest, small on earlier ones), chips are disabled rather than removed while busy, each hint targets its own line by `message_id` (`opening_message_id` added to `POST /sessions`), and the sheet shows the error with Try again. API 32 tests, web 40 flows |
+
+### Verification at the second commit
+
+| Check | Result |
+|---|---|
+| `api`: pytest / ruff / mypy strict / alembic check | 30 passed / clean / clean / no drift |
+| `web`: eslint / tsc / Playwright | clean / clean / 32 passed |
+| Google sign-in | completed live by the user from the laptop |
+| HTTPS pair | both certificates verify against the local CA (OpenSSL return code 0) on localhost and on the hotspot address |
+| Talk over HTTPS, real account, real LLM | `isSecureContext` true, API calls on 8443, mic and voice toggle rendered, no console errors |
+
+### Still for the user to judge
+
+- Real microphone on the phone (install `yapster-dev-ca.pem` as a CA, open `https://<laptop-ip>:3443`, allow the mic). The brief's open questions, whether the phone's German recognition and built-in German voice are good enough, are answered only by using it. Fallbacks ready if not: Groq's free Whisper for recognition, Piper for a nicer voice.
+
+### Problems hit and fixed this session
+
+- `redirect_uri_mismatch` from Google: the callback URI had not been registered in the Cloud Console.
+- A `$'` sequence in a JavaScript replacement string duplicated half of a test file; the spec was rewritten from scratch.
+- Backslashes in regex literals were lost when written through the shell; those lines are now edited with the file tool.
+- The HTTPS Talk page first called the plain API port because an earlier edit had silently not applied; the port mapping was re-applied with the editor and re-verified.
+- Windows curl refuses the local CA for lack of a revocation list; OpenSSL and browsers accept it.
+
+### Next
+
+1. Milestone 4, RAG and memory: grammar reference and scenario markdown, local embeddings, hybrid search, memory extraction at session end.
+2. Milestone 5, remaining: editable Profile, placement chat for "Not sure", language field in onboarding (Scenarios and Progress screens are done).
+3. Milestone 6: PWA manifest, haptics, offline transcript cache; Whisper/Piper if the browser speech disappoints.
 
 ## 2026-10-15 → 2026-10-16 (first build session)
 

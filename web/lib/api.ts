@@ -82,7 +82,7 @@ export type AuthResponse = { token: string; user: User };
 
 export type OnboardingInput = {
   name: string;
-  level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+  level: "A0" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   comfort: "terrifying" | "awkward" | "fine" | "pretty_good";
   goals: string[];
   tutor_name?: string;
@@ -94,6 +94,8 @@ export type StartSession = {
   scenario_title: string;
   tutor_name: string;
   opening: string;
+  opening_en: string;
+  opening_message_id: string;
   level: string;
   difficulty: number;
 };
@@ -101,6 +103,7 @@ export type StartSession = {
 export type TurnDone = {
   message_id: string;
   reply_de: string;
+  reply_en: string;
   correction_count: number;
   new_corrections: number;
   difficulty: number;
@@ -127,6 +130,14 @@ export type Correction = {
 
 export type Help = { german: string; note: string };
 
+export type Hint = {
+  message_id: string;
+  tutor_line: string;
+  translation: string;
+  suggestions: { german: string; english: string }[];
+  tip: string;
+};
+
 export type Note = {
   you_said: string;
   native_would_say: string;
@@ -150,7 +161,46 @@ export type Recap = {
   new_words: { word: string; gloss_en: string }[];
 };
 
-export type Scenario = { slug: string; title: string; blurb: string; minutes: number };
+export type Scenario = {
+  slug: string;
+  title: string;
+  blurb: string;
+  minutes: number;
+  played: number;
+  last_played_at: string | null;
+};
+
+export type SessionState = {
+  session_id: string;
+  scenario: string;
+  scenario_title: string;
+  tutor_name: string;
+  level: string;
+  difficulty: number;
+  started_at: string;
+  ended: boolean;
+  correction_count: number;
+  transcript: { id: string; role: "user" | "tutor"; text: string; text_en: string | null; assisted: boolean }[];
+};
+
+export type Progress = {
+  days: { date: string; minutes: number; sessions: number }[];
+  streak_days: number;
+  best_streak: number;
+  weeks: string[];
+  weak_spots: { grammar_tag: string; total: number; weekly: number[] }[];
+  vocab: { week_start: string; owned: number }[];
+  sessions: {
+    session_id: string;
+    scenario: string;
+    scenario_title: string;
+    ended_at: string;
+    minutes: number;
+    notes: number;
+    fluency_score: number | null;
+  }[];
+  totals: { sessions: number; minutes: number; words: number; corrections: number };
+};
 
 export type Providers = { google: { enabled: boolean; web_origin: string } };
 
@@ -174,6 +224,13 @@ export type Dashboard = {
   } | null;
   next_session: { scenario: string; scenario_title: string; minutes: number; reason: string };
   weak_spot: { grammar_tag: string; count: number; example_native: string | null } | null;
+  open_session: {
+    session_id: string;
+    scenario: string;
+    scenario_title: string;
+    started_at: string;
+    turns: number;
+  } | null;
 };
 
 /* ── Calls ───────────────────────────────────────────────────────── */
@@ -197,6 +254,8 @@ export const api = {
   googleStartUrl: () =>
     `${apiUrl()}/auth/google/start?return_to=${encodeURIComponent(window.location.origin)}`,
   dashboard: () => request<Dashboard>("/dashboard"),
+  progress: () => request<Progress>("/progress"),
+  session: (sessionId: string) => request<SessionState>(`/sessions/${sessionId}`),
   me: () => request<Me>("/me"),
   onboarding: (input: OnboardingInput) =>
     request<User>("/onboarding", { method: "POST", body: JSON.stringify(input) }),
@@ -211,6 +270,12 @@ export const api = {
     request<Help>(`/sessions/${sessionId}/help`, {
       method: "POST",
       body: JSON.stringify({ english }),
+    }),
+  /** Translation of a tutor line (latest when no id) plus three replies the learner could give. */
+  hint: (sessionId: string, messageId?: string | null) =>
+    request<Hint>(`/sessions/${sessionId}/hint`, {
+      method: "POST",
+      body: JSON.stringify({ message_id: messageId ?? null }),
     }),
   nudge: (sessionId: string, delta: -1 | 1) =>
     request<{ difficulty: number; level: string }>(`/sessions/${sessionId}/difficulty`, {

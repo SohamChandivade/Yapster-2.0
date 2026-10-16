@@ -151,3 +151,11 @@ export function SpeakerOffIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function LightbulbIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5c-.6.6-1 1.3-1.2 2.1H9.7c-.2-.8-.6-1.5-1.2-2.1z" />
+    </svg>
+  );
+}

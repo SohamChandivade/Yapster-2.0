@@ -197,3 +197,31 @@ body {
     animation: none;
   }
 }
+
+/* ── Charts (validated with the dataviz palette validator against the card surface) ── */
+:root,
+:root[data-theme="light"] {
+  --viz-surface: #fdfcfb;
+  --viz-grid: #e6e3dd;
+  --viz-axis: #c9c6bf;
+  --viz-empty: rgba(28, 27, 26, 0.06);
+  --viz-series-a: #6250d6; /* weak spots */
+  --viz-series-b: #148f62; /* vocabulary */
+  --viz-ramp-1: #ee9359; /* calendar, light → dark */
+  --viz-ramp-2: #df6e33;
+  --viz-ramp-3: #c2521e;
+  --viz-ramp-4: #953c13;
+}
+
+:root[data-theme="dark"] {
+  --viz-surface: #19191c;
+  --viz-grid: #2c2c30;
+  --viz-axis: #3a3a40;
+  --viz-empty: rgba(255, 255, 255, 0.07);
+  --viz-series-a: #9085e9;
+  --viz-series-b: #199e70;
+  --viz-ramp-1: #a3471b; /* dark → light */
+  --viz-ramp-2: #c75a25;
+  --viz-ramp-3: #e8773b;
+  --viz-ramp-4: #f6a378;
+}

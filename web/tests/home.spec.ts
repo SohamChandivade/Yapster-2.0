@@ -97,3 +97,47 @@ test.describe("Theme", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   });
 });
+
+test.describe("Home links", () => {
+  test("calendar, tiles, See all and last session all lead somewhere real", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Hallo, Ujjwal");
+    await expect(page.getByRole("link", { name: "Open progress" })).toHaveAttribute("href", "/progress");
+    await expect(page.getByRole("link", { name: "Streak, see progress" })).toHaveAttribute("href", "/progress");
+    await expect(page.getByRole("link", { name: /Open the recap of your last session/ })).toHaveAttribute(
+      "href",
+      "/recap/11111111-1111-1111-1111-111111111111",
+    );
+    await page.getByRole("link", { name: "See all" }).click();
+    await expect(page).toHaveURL(/\/scenarios$/);
+  });
+
+  test("an unfinished conversation can be continued from Home", async ({ page }) => {
+    const { API, dashboard, SID } = await import("./mockApi");
+    await page.route(`${API}/dashboard`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...dashboard,
+          open_session: {
+            session_id: SID,
+            scenario: "bakery",
+            scenario_title: "Bakery",
+            started_at: new Date(Date.now() - 600000).toISOString(),
+            turns: 1,
+          },
+        }),
+      }),
+    );
+    await page.goto("/");
+    const card = page.getByLabel("Unfinished conversation", { exact: true });
+    await expect(card).toContainText("Bakery · 1 turn");
+    await card.getByRole("link", { name: "Continue" }).click();
+    await expect(page).toHaveURL(new RegExp(`/talk\\?session=${SID}$`));
+    const transcript = page.getByLabel("Transcript");
+    await expect(transcript).toContainText("Soll ich es schneiden?");
+    await expect(transcript.locator("[data-role=user]")).toHaveText(["Ich möchte ein Brot"]);
+    await expect(page.getByRole("button", { name: /1 note/ })).toBeVisible();
+  });
+});

@@ -104,6 +104,7 @@ test.describe("Onboarding", () => {
     await next.click();
 
     await expect(h1).toHaveText("What's your level?");
+    await expect(page.getByRole("button", { name: /Just starting/ })).toBeVisible();
     await page.getByRole("button", { name: /^B1/ }).click();
     await page.screenshot({ path: "test-results/onboarding-3.png" });
     await next.click();

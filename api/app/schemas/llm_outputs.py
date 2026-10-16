@@ -19,11 +19,25 @@ class SilentCorrection(BaseModel):
 
 class TutorTurn(BaseModel):
     reply_de: str
+    reply_en: str = ""
     difficulty_signal: int = Field(default=0, ge=-1, le=1)
     silent_corrections: list[SilentCorrection] = []
     new_vocab: list[str] = []
 
     _lists = field_validator("silent_corrections", "new_vocab", mode="before")(_none_to_list)
+
+
+class Suggestion(BaseModel):
+    german: str
+    english: str = ""
+
+
+class HintOut(BaseModel):
+    translation: str
+    suggestions: list[Suggestion] = []
+    tip: str = ""
+
+    _lists = field_validator("suggestions", mode="before")(_none_to_list)
 
 
 class HelpOut(BaseModel):

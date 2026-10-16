@@ -118,6 +118,13 @@ export const speaker = {
     speakNow(text);
   },
 
+  /** Speak one phrase on request (a hint's listen button), even when voice is switched off. */
+  preview(text: string): void {
+    if (!useSpeakerStore.getState().available || !text.trim()) return;
+    speaker.cancel();
+    speakNow(text);
+  },
+
   /** Stop talking and forget anything queued. */
   cancel(): void {
     pending = [];

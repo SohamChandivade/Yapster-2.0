@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Backdrop } from "@/components/ui/Backdrop";
 import { Blob } from "@/components/ui/Blob";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Glow } from "@/components/ui/Glow";
-import { ArrowRightIcon, CalendarIcon } from "@/components/ui/icons";
-import { IconPill } from "@/components/ui/Pill";
+import { ArrowRightIcon, CalendarIcon, ChevronRightIcon, CloseIcon } from "@/components/ui/icons";
+import { PillLink } from "@/components/ui/Pill";
 import { StatTile } from "@/components/ui/StatTile";
 import { api, ApiError, type Dashboard } from "@/lib/api";
 import { clearSession } from "@/lib/auth";
@@ -20,12 +20,20 @@ function humanTag(tag: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-/** Home / dashboard (reference image 5). Every number comes from the API. */
+function ago(iso: string): string {
+  const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+}
+
+/** Home / dashboard (reference image 5). Every number comes from the API; every element leads somewhere. */
 export function HomeScreen() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     api
       .dashboard()
@@ -46,12 +54,26 @@ export function HomeScreen() {
     };
   }, []);
 
+  useEffect(() => load(), [load]);
+
+  async function discardOpen(id: string) {
+    setDiscarding(true);
+    try {
+      await api.discard(id);
+    } catch {
+      /* already gone */
+    }
+    setDiscarding(false);
+    load();
+  }
+
   const name = data?.user.name ?? "";
   const initial = name ? name[0].toUpperCase() : "·";
   const tutor = data?.user.tutor_name ?? "Lena";
   const last = data?.last_session ?? null;
   const next = data?.next_session;
   const weak = data?.weak_spot ?? null;
+  const open = data?.open_session ?? null;
   const talkHref = next ? `/talk?scenario=${next.scenario}` : "/talk";
 
   const subline = !data
@@ -114,12 +136,42 @@ export function HomeScreen() {
             past 7 days · goal
           </span>
         </div>
-        <IconPill aria-label="Calendar">
+        <Link
+          href="/progress"
+          aria-label="Open progress"
+          className="glass-strong flex h-11 w-11 items-center justify-center rounded-full text-ink transition-transform duration-200 ease-out active:scale-95"
+        >
           <CalendarIcon className="h-5 w-5" />
-        </IconPill>
+        </Link>
       </div>
 
-      <GlassCard strong padded={false} className="mt-7">
+      {open && (
+        <GlassCard strong padded={false} className="mt-6" aria-label="Unfinished conversation">
+          <div className="flex items-center gap-3 p-4">
+            <Blob size={36} palette="warm" expression="neutral" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] text-ink-muted">Unfinished · {ago(open.started_at)}</p>
+              <p className="truncate text-[15px] font-medium">
+                {open.scenario_title} · {open.turns} {open.turns === 1 ? "turn" : "turns"}
+              </p>
+            </div>
+            <PillLink href={`/talk?session=${open.session_id}`} size="sm">
+              Continue
+            </PillLink>
+            <button
+              type="button"
+              aria-label="Discard unfinished conversation"
+              disabled={discarding}
+              onClick={() => void discardOpen(open.session_id)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink/8 text-ink disabled:opacity-40"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </GlassCard>
+      )}
+
+      <GlassCard strong padded={false} className={open ? "mt-4" : "mt-7"}>
         <div className="absolute top-6 right-5">
           <Blob size={84} palette="warm" expression="none" />
         </div>
@@ -130,15 +182,24 @@ export function HomeScreen() {
         <div className="flex gap-6 px-5 pt-1 pb-5">
           <div className="min-w-0">
             <p className="text-[12px] text-ink-muted">Next session</p>
-            <p className="mt-0.5 truncate text-[15px] font-medium">
-              {next ? next.scenario_title : "…"}
-            </p>
+            <p className="mt-0.5 truncate text-[15px] font-medium">{next ? next.scenario_title : "…"}</p>
           </div>
           <div className="min-w-0 border-l border-ink/10 pl-6">
             <p className="text-[12px] text-ink-muted">Last session</p>
-            <p className="mt-0.5 truncate text-[15px] font-medium">
-              {!data ? "…" : last ? `${last.minutes} min · ${last.notes} ${last.notes === 1 ? "note" : "notes"}` : "None yet"}
-            </p>
+            {last ? (
+              <Link
+                href={`/recap/${last.session_id}`}
+                className="mt-0.5 flex items-center gap-0.5 text-[15px] font-medium"
+                aria-label={`Open the recap of your last session, ${last.scenario_title}`}
+              >
+                <span className="truncate">
+                  {last.minutes} min · {last.notes} {last.notes === 1 ? "note" : "notes"}
+                </span>
+                <ChevronRightIcon className="h-4 w-4 shrink-0 text-ink-muted" />
+              </Link>
+            ) : (
+              <p className="mt-0.5 truncate text-[15px] font-medium">{data ? "None yet" : "…"}</p>
+            )}
           </div>
         </div>
         <Link
@@ -156,24 +217,33 @@ export function HomeScreen() {
       )}
 
       <section className="relative mt-4 grid grid-cols-3 gap-3" aria-label="Stats">
-        <StatTile
-          label="Streak"
-          value={data ? `${data.streak_days}` : "–"}
-          sub={data?.streak_days === 1 ? "day" : "days"}
-          glow="var(--glow-amber)"
-        />
-        <StatTile
-          label="Words owned"
-          value={data ? `${data.words_owned}` : "–"}
-          sub={data ? `+${data.words_last_7_days} this week` : ""}
-          glow="var(--glow-mint)"
-        />
-        <StatTile
-          label="Weak spot"
-          value={!data ? "–" : weak ? humanTag(weak.grammar_tag) : "None"}
-          sub={!data ? "" : weak ? `${weak.count}× this month` : "keep talking"}
-          glow="var(--glow-lilac)"
-        />
+        <Link href="/progress" className="block" aria-label="Streak, see progress">
+          <StatTile
+            label="Streak"
+            value={data ? `${data.streak_days}` : "–"}
+            sub={data?.streak_days === 1 ? "day" : "days"}
+            glow="var(--glow-amber)"
+            className="h-full"
+          />
+        </Link>
+        <Link href="/progress" className="block" aria-label="Words owned, see progress">
+          <StatTile
+            label="Words owned"
+            value={data ? `${data.words_owned}` : "–"}
+            sub={data ? `+${data.words_last_7_days} this week` : ""}
+            glow="var(--glow-mint)"
+            className="h-full"
+          />
+        </Link>
+        <Link href="/progress" className="block" aria-label="Weak spot, see progress">
+          <StatTile
+            label="Weak spot"
+            value={!data ? "–" : weak ? humanTag(weak.grammar_tag) : "None"}
+            sub={!data ? "" : weak ? `${weak.count}× this month` : "keep talking"}
+            glow="var(--glow-lilac)"
+            className="h-full"
+          />
+        </Link>
       </section>
 
       <section className="relative mt-8" aria-label="Scenarios">

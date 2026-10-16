@@ -11,22 +11,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Correction, Memory, Message, TalkSession, User
 from app.llm.client import LLMClient
-from app.llm.prompts import HELP_SYSTEM, OPENING_REQUEST, REGISTER_BY_LEVEL, TUTOR_SYSTEM
+from app.llm.prompts import (
+    HELP_SYSTEM,
+    HINT_SYSTEM,
+    OPENING_REQUEST,
+    REGISTER_BY_LEVEL,
+    TUTOR_SYSTEM,
+)
 from app.llm.types import ChatMessage, LLMError
 from app.scenarios import Scenario, get_scenario
-from app.schemas.llm_outputs import HelpOut, TutorTurn
+from app.schemas.llm_outputs import HelpOut, HintOut, TutorTurn
 from app.schemas.sessions import TurnDone
 from app.services.correction_service import count_corrections
 
 log = logging.getLogger("yapster.session")
 
-LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+# A0 = just starting, below A1. Index order matters: difficulty is stored as this index.
+LEVELS = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"]
 HISTORY_MESSAGES = 12  # six exchanges; keeps live prompts small for Groq's 8K TPM
 MAX_REPLY_TOKENS = 400
 
 
 def level_index(level: str) -> int:
-    return LEVELS.index(level) if level in LEVELS else 2
+    return LEVELS.index(level) if level in LEVELS else LEVELS.index("B1")
 
 
 def level_name(index: int) -> str:
@@ -98,7 +105,8 @@ async def history(
 
 async def start_session(
     db: AsyncSession, user: User, scenario_slug: str | None, llm: LLMClient
-) -> tuple[TalkSession, Scenario, str]:
+) -> tuple[TalkSession, Scenario, Message]:
+    """Create the session and persist the tutor's opening line."""
     scenario = get_scenario(scenario_slug)
     session = TalkSession(
         user_id=user.id, scenario=scenario.slug, difficulty=level_index(user.level)
@@ -115,11 +123,18 @@ async def start_session(
         schema=TutorTurn,
         max_tokens=MAX_REPLY_TOKENS,
     )
-    opening = parsed.reply_de.strip()
-    db.add(Message(session_id=session.id, seq=0, role="tutor", text_de=opening))
+    line = Message(
+        session_id=session.id,
+        seq=0,
+        role="tutor",
+        text_de=parsed.reply_de.strip(),
+        text_en_hint=parsed.reply_en.strip() or None,
+    )
+    db.add(line)
     await db.commit()
     await db.refresh(session)
-    return session, scenario, opening
+    await db.refresh(line)
+    return session, scenario, line
 
 
 def sse(event: str, data: Any) -> str:
@@ -165,7 +180,11 @@ async def stream_turn(
 
             parsed, info = payload
             tutor_msg = Message(
-                session_id=session.id, seq=seq + 1, role="tutor", text_de=parsed.reply_de.strip()
+                session_id=session.id,
+                seq=seq + 1,
+                role="tutor",
+                text_de=parsed.reply_de.strip(),
+                text_en_hint=parsed.reply_en.strip() or None,
             )
             db.add(tutor_msg)
             new_corrections = 0
@@ -190,6 +209,7 @@ async def stream_turn(
             done = TurnDone(
                 message_id=tutor_msg.id,
                 reply_de=tutor_msg.text_de,
+                reply_en=tutor_msg.text_en_hint or "",
                 correction_count=await count_corrections(db, session.id),
                 new_corrections=new_corrections,
                 difficulty=session.difficulty,
@@ -227,3 +247,43 @@ async def nudge_difficulty(db: AsyncSession, user: User, session: TalkSession, d
     session.difficulty = clamp_difficulty(session.difficulty + delta, user.level)
     await db.commit()
     return session.difficulty
+
+
+async def hint(
+    db: AsyncSession,
+    session: TalkSession,
+    llm: LLMClient,
+    message_id: Any | None = None,
+) -> tuple[Message, HintOut]:
+    """Translate a tutor line and suggest three replies. Defaults to the latest tutor line."""
+    query = select(Message).where(Message.session_id == session.id, Message.role == "tutor")
+    if message_id is not None:
+        query = query.where(Message.id == message_id)
+    target = (await db.execute(query.order_by(Message.seq.desc()).limit(1))).scalar_one_or_none()
+    if target is None:
+        raise LookupError("no tutor line to explain")
+
+    scenario = get_scenario(session.scenario)
+    level = level_name(session.difficulty)
+    recent = [m for m in await history(db, session.id, limit=6) if m.seq <= target.seq]
+    transcript = "\n".join(
+        f"{'Tutor' if m.role == 'tutor' else 'Learner'}: {m.text_de}" for m in recent
+    )
+    parsed, _ = await llm.complete_json(
+        purpose="hint",
+        chain=llm.chat_chain,
+        system=HINT_SYSTEM.format(
+            level=level, register=REGISTER_BY_LEVEL[level], scenario_script=scenario.script
+        ),
+        messages=[
+            ChatMessage(
+                "user", f"Conversation so far:\n{transcript}\n\nTutor's last line: {target.text_de}"
+            )
+        ],
+        schema=HintOut,
+        max_tokens=400,
+        temperature=0.5,
+    )
+    if not parsed.translation.strip() and target.text_en_hint:
+        parsed.translation = target.text_en_hint
+    return target, parsed

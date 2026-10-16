@@ -14,6 +14,7 @@ import { type TalkStatus, useTalkStore } from "@/lib/talkStore";
 import { CorrectionsDrawer } from "./CorrectionsDrawer";
 import { DifficultyPill } from "./DifficultyPill";
 import { HelpMeSayThis } from "./HelpMeSayThis";
+import { HintSheet } from "./HintSheet";
 import { LeaveSheet } from "./LeaveSheet";
 import { NotesChip } from "./NotesChip";
 import { TalkBar } from "./TalkBar";
@@ -31,7 +32,7 @@ const expressionFor: Record<TalkStatus, BlobExpression> = {
 };
 
 /** The core screen (CLAUDE.md §5.3). Blob centred, transcript below, one glass pill at the bottom. */
-export function TalkScreen({ scenario }: { scenario: string | null }) {
+export function TalkScreen({ scenario, resumeId = null }: { scenario: string | null; resumeId?: string | null }) {
   const router = useRouter();
   const sessionId = useTalkStore((s) => s.sessionId);
   const status = useTalkStore((s) => s.status);
@@ -42,8 +43,24 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
   const correctionCount = useTalkStore((s) => s.correctionCount);
   const corrections = useTalkStore((s) => s.corrections);
   const error = useTalkStore((s) => s.error);
-  const { start, send, nudge, loadCorrections, end, discard, dismissError, reset } =
-    useTalkStore.getState();
+  const hints = useTalkStore((s) => s.hints);
+  const hintLoading = useTalkStore((s) => s.hintLoading);
+  const hintError = useTalkStore((s) => s.hintError);
+  const showEnglish = useTalkStore((s) => s.showEnglish);
+  const {
+    start,
+    resume,
+    send,
+    nudge,
+    loadCorrections,
+    loadHint,
+    loadPrefs,
+    setShowEnglish,
+    end,
+    discard,
+    dismissError,
+    reset,
+  } = useTalkStore.getState();
 
   const voice = useSpeakerStore();
   const mic = useSpeechInput((text) => void send(text));
@@ -51,13 +68,16 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [hintLineId, setHintLineId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     speaker.init();
-    void start(scenario);
+    loadPrefs();
+    if (resumeId) void resume(resumeId);
+    else void start(scenario);
     return () => reset();
-  }, [scenario, start, reset]);
+  }, [scenario, resumeId, start, resume, reset, loadPrefs]);
 
   // Starting to talk interrupts Lena.
   useEffect(() => {
@@ -69,6 +89,7 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
   const saidSomething = lines.some((l) => l.role === "user");
   const blobSpeaking = voice.speaking || status === "speaking";
   const blobExpression: BlobExpression = mic.listening ? "neutral" : expressionFor[status];
+  const hintLine = hintLineId ? lines.find((l) => l.id === hintLineId) : undefined;
 
   async function finish() {
     setLeaving(true);
@@ -86,6 +107,11 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
   function back() {
     if (saidSomething && status !== "failed") setLeaveOpen(true);
     else void leave();
+  }
+
+  function openHint(lineId: string) {
+    setHintLineId(lineId);
+    void loadHint(lineId);
   }
 
   const notice = error ?? mic.error;
@@ -175,7 +201,15 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
             </PillLink>
           </div>
         ) : (
-          <Transcript lines={lines} speaking={status === "speaking"} className="mt-5 min-h-0 flex-1" />
+          <Transcript
+            lines={lines}
+            speaking={status === "speaking"}
+            showEnglish={showEnglish}
+            onHint={openHint}
+            hintLoading={hintLoading !== null}
+            hintsDisabled={busy}
+            className="mt-5 min-h-0 flex-1"
+          />
         )}
 
         {notice && status !== "failed" && (
@@ -200,6 +234,24 @@ export function TalkScreen({ scenario }: { scenario: string | null }) {
         />
       </div>
 
+      <HintSheet
+        open={hintLineId !== null}
+        onClose={() => setHintLineId(null)}
+        tutorName={tutorName}
+        tutorLine={hintLine?.text ?? ""}
+        hint={hintLineId ? (hints[hintLineId] ?? null) : null}
+        loading={hintLoading !== null}
+        error={hintError}
+        onRetry={() => hintLineId && void loadHint(hintLineId)}
+        canListen={voice.available}
+        showEnglish={showEnglish}
+        onToggleEnglish={setShowEnglish}
+        onListen={(german) => speaker.preview(german)}
+        onUse={(german) => {
+          setHintLineId(null);
+          void send(german, true);
+        }}
+      />
       <HelpMeSayThis
         open={helpOpen}
         sessionId={sessionId}

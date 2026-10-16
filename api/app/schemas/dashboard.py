@@ -29,6 +29,16 @@ class WeakSpot(BaseModel):
     example_native: str | None
 
 
+class OpenSession(BaseModel):
+    """A conversation that was started but never finished, offered for resuming."""
+
+    session_id: uuid.UUID
+    scenario: str
+    scenario_title: str
+    started_at: datetime
+    turns: int
+
+
 class DashboardResponse(BaseModel):
     user: UserOut
     day: int
@@ -41,3 +51,4 @@ class DashboardResponse(BaseModel):
     last_session: LastSession | None
     next_session: NextSession
     weak_spot: WeakSpot | None
+    open_session: OpenSession | None

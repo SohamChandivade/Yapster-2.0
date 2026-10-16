@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-Level = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
+Level = Literal["A0", "A1", "A2", "B1", "B2", "C1", "C2"]  # A0 = just starting, below A1
 
 
 class Settings(BaseSettings):

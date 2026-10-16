@@ -13,7 +13,7 @@ import { setOnboarded } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 
 type Comfort = OnboardingInput["comfort"];
-type Level = "A1" | "A2" | "B1" | "B2";
+type Level = "A0" | "A1" | "A2" | "B1" | "B2";
 type Goal = "work" | "living" | "travel" | "exams" | "fun";
 
 const COMFORT: { value: Comfort; label: string; expression: BlobExpression; palette: BlobPalette }[] = [
@@ -23,7 +23,8 @@ const COMFORT: { value: Comfort; label: string; expression: BlobExpression; pale
   { value: "pretty_good", label: "Pretty good", expression: "happy", palette: "rose" },
 ];
 
-const LEVELS: { value: Level; hint: string }[] = [
+const LEVELS: { value: Level; label?: string; hint: string; wide?: boolean }[] = [
+  { value: "A0", label: "Just starting", hint: "Hallo and Danke, that's about it. Lena keeps it tiny and you get hints.", wide: true },
   { value: "A1", hint: "Beginner. Hallo, danke, ein Bier." },
   { value: "A2", hint: "Basics. Simple sentences, present tense." },
   { value: "B1", hint: "Conversational. Gets by, with effort." },
@@ -69,7 +70,8 @@ export function OnboardingFlow() {
   const isLast = step === STEPS - 1;
   const canContinue = [name.trim().length > 0, comfort !== null, level !== null, goals.length > 0, true][step];
   const comfortMeta = COMFORT.find((c) => c.value === comfort);
-  const effectiveLevel: Level = level === null || level === "unsure" ? "A2" : level;
+  // "Not sure" starts low; the tutor drifts upward one notch when turns go easily.
+  const effectiveLevel: Level = level === null || level === "unsure" ? "A1" : level;
   const firstGoal = GOALS.find((g) => g.value === goals[0]);
 
   const expression: BlobExpression = (() => {
@@ -165,9 +167,9 @@ export function OnboardingFlow() {
             type="button"
             aria-pressed={level === l.value}
             onClick={() => setLevel(l.value)}
-            className={choice(level === l.value, "rounded-card p-4 text-left")}
+            className={choice(level === l.value, cn("rounded-card p-4 text-left", l.wide && "col-span-2"))}
           >
-            <span className="block text-[22px] font-medium">{l.value}</span>
+            <span className="block text-[22px] font-medium">{l.label ?? l.value}</span>
             <span className={cn("mt-1 block text-[12px] leading-snug", level === l.value ? "text-bg/70" : "text-ink-muted")}>
               {l.hint}
             </span>

@@ -67,6 +67,90 @@ export const dashboard = {
     reason: "Matches your goal: Work",
   },
   weak_spot: { grammar_tag: "dative", count: 4, example_native: "mit dem Bus" },
+  open_session: null,
+};
+
+export const SID2 = "22222222-2222-2222-2222-222222222222";
+
+const isoDay = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+};
+const mondayAgo = (weeksAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - weeksAgo * 7);
+  return d.toISOString().slice(0, 10);
+};
+
+/** 35 days ending today with three active days, four weeks of tags, eight weeks of vocab. */
+export function progressFixture() {
+  const active: Record<number, [number, number]> = { 0: [8, 1], 1: [12.5, 2], 5: [4, 1] };
+  const owned = [20, 41, 60, 88, 110, 131, 160, 184];
+  return {
+    days: Array.from({ length: 35 }, (_, i) => {
+      const ago = 34 - i;
+      const [minutes, sessions] = active[ago] ?? [0, 0];
+      return { date: isoDay(ago), minutes, sessions };
+    }),
+    streak_days: 2,
+    best_streak: 4,
+    weeks: [3, 2, 1, 0].map(mondayAgo),
+    weak_spots: [
+      { grammar_tag: "dative", total: 7, weekly: [1, 2, 1, 3] },
+      { grammar_tag: "word_order", total: 4, weekly: [0, 2, 1, 1] },
+    ],
+    vocab: [7, 6, 5, 4, 3, 2, 1, 0].map((w, i) => ({ week_start: mondayAgo(w), owned: owned[i] })),
+    sessions: [
+      {
+        session_id: SID,
+        scenario: "bakery",
+        scenario_title: "Bakery",
+        ended_at: new Date().toISOString(),
+        minutes: 8,
+        notes: 3,
+        fluency_score: 62,
+      },
+      {
+        session_id: SID2,
+        scenario: "party",
+        scenario_title: "Party small talk",
+        ended_at: new Date(Date.now() - 86400000).toISOString(),
+        minutes: 12.5,
+        notes: 1,
+        fluency_score: 71,
+      },
+    ],
+    totals: { sessions: 5, minutes: 48.5, words: 184, corrections: 11 },
+  };
+}
+
+const now = new Date().toISOString();
+export const scenarioList = [
+  { slug: "bakery", title: "Bakery", blurb: "Order bread, ask for a bag, pay.", minutes: 5, played: 3, last_played_at: now },
+  { slug: "train", title: "Train ticket", blurb: "Buy a ticket, ask about the delay.", minutes: 6, played: 0, last_played_at: null },
+  { slug: "doctor", title: "Doctor", blurb: "Describe what hurts, book a follow-up.", minutes: 8, played: 0, last_played_at: null },
+  { slug: "landlord", title: "Landlord", blurb: "The heating is broken. Again.", minutes: 8, played: 1, last_played_at: now },
+  { slug: "party", title: "Party small talk", blurb: "Who are you, how do you know the host?", minutes: 7, played: 1, last_played_at: now },
+  { slug: "interview", title: "Job interview", blurb: "Introduce yourself, talk about strengths.", minutes: 10, played: 0, last_played_at: null },
+  { slug: "free", title: "Free talk", blurb: "No script. Just talk.", minutes: 10, played: 0, last_played_at: null },
+];
+
+export const sessionState = {
+  session_id: SID,
+  scenario: "bakery",
+  scenario_title: "Bakery",
+  tutor_name: "Lena",
+  level: "B1",
+  difficulty: 2,
+  started_at: new Date(Date.now() - 600000).toISOString(),
+  ended: false,
+  correction_count: 1,
+  transcript: [
+    { id: "t1", role: "tutor", text: "Guten Morgen! Was darf es sein?", text_en: "Good morning! What can I get you?", assisted: false },
+    { id: "u1", role: "user", text: "Ich möchte ein Brot", text_en: null, assisted: false },
+    { id: "t2", role: "tutor", text: "Gern, ein Roggenbrot. Soll ich es schneiden?", text_en: "Sure, a rye bread. Shall I slice it?", assisted: false },
+  ],
 };
 
 export type SessionKind = "none" | "new" | "onboarded";
@@ -125,6 +209,8 @@ export async function mockApi(page: Page, opts: { session?: SessionKind } = {}):
     }),
   );
   await page.route(`${API}/dashboard`, (route) => route.fulfill(json(200, dashboard)));
+  await page.route(`${API}/progress`, (route) => route.fulfill(json(200, progressFixture())));
+  await page.route(`${API}/scenarios`, (route) => route.fulfill(json(200, scenarioList)));
   await page.route(`${API}/onboarding`, (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     return route.fulfill(json(200, { ...USER, ...body, onboarded: true }));
@@ -138,6 +224,8 @@ export async function mockApi(page: Page, opts: { session?: SessionKind } = {}):
         scenario_title: "Bakery",
         tutor_name: "Lena",
         opening: "Guten Morgen! Was darf es sein?",
+        opening_en: "Good morning! What can I get you?",
+        opening_message_id: "m0",
         level: "B1",
         difficulty: 2,
       }),
@@ -161,6 +249,7 @@ export async function mockApi(page: Page, opts: { session?: SessionKind } = {}):
           {
             message_id: "m2",
             reply_de: reply,
+            reply_en: body.assisted ? "Of course, here is a bag." : "Sure, a rye bread. Shall I slice it?",
             correction_count: 1,
             new_corrections: body.assisted ? 0 : 1,
             difficulty: 2,
@@ -177,7 +266,22 @@ export async function mockApi(page: Page, opts: { session?: SessionKind } = {}):
   await page.route(`${API}/sessions/${SID}`, (route) =>
     route.request().method() === "DELETE"
       ? route.fulfill({ status: 204, body: "" })
-      : route.fulfill(json(404, { detail: "Session not found" })),
+      : route.fulfill(json(200, sessionState)),
+  );
+  await page.route(`${API}/sessions/${SID}/hint`, (route) =>
+    route.fulfill(
+      json(200, {
+        message_id: "m0",
+        tutor_line: "Guten Morgen! Was darf es sein?",
+        translation: "Good morning! What can I get you?",
+        suggestions: [
+          { german: "Ein Brot, bitte.", english: "A bread, please." },
+          { german: "Was ist frisch?", english: "What is fresh?" },
+          { german: "Zwei Brötchen, bitte.", english: "Two rolls, please." },
+        ],
+        tip: "She is asking what you would like; name one thing and add bitte.",
+      }),
+    ),
   );
   await page.route(`${API}/sessions/${SID}/help`, (route) =>
     route.fulfill(

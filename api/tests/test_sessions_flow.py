@@ -28,6 +28,8 @@ async def test_full_conversation_flow(db_client: AsyncClient, fake_llm: FakeLLM)
     start = res.json()
     sid = start["session_id"]
     assert start["opening"] == "Guten Morgen! Was darf es sein?"
+    assert start["opening_en"] == "Good morning! What can I get you?"
+    opening_id = start["opening_message_id"]
     assert start["scenario_title"] == "Bakery" and start["level"] == "B1"
 
     # A turn streams deltas, then a done event with the silent correction counted.
@@ -43,10 +45,28 @@ async def test_full_conversation_flow(db_client: AsyncClient, fake_llm: FakeLLM)
     assert done[1]["correction_count"] == 1 and done[1]["new_corrections"] == 1
     assert done[1]["level"] == "B2"  # difficulty_signal +1 nudged it up one notch
     assert done[1]["new_vocab"] == ["das Roggenbrot"]
+    assert done[1]["reply_en"] == "Sure, a rye bread. Shall I slice it?"
 
     # State shows the whole transcript; corrections are stored but were never shown inline.
     state = (await db_client.get(f"/sessions/{sid}")).json()
     assert [m["role"] for m in state["transcript"]] == ["tutor", "user", "tutor"]
+    assert state["transcript"][2]["text_en"] == "Sure, a rye bread. Shall I slice it?"
+
+    # A hint explains the latest tutor line and offers three replies.
+    res = await db_client.post(f"/sessions/{sid}/hint", json={})
+    assert res.status_code == 200, res.text
+    hint = res.json()
+    assert hint["tutor_line"] == "Gern, ein Roggenbrot. Soll ich es schneiden?"
+    assert hint["translation"].startswith("Sure")
+    assert [s["german"] for s in hint["suggestions"]] == [
+        "Ja, bitte.",
+        "Nein, am Stück, bitte.",
+        "Was kostet das?",
+    ]
+    assert "hint" in fake_llm.calls
+    # A hint can also target an earlier tutor line explicitly.
+    res = await db_client.post(f"/sessions/{sid}/hint", json={"message_id": opening_id})
+    assert res.status_code == 200 and res.json()["tutor_line"] == "Guten Morgen! Was darf es sein?"
     assert state["correction_count"] == 1
     notes = (await db_client.get(f"/sessions/{sid}/corrections")).json()
     assert notes[0]["grammar_tag"] == "register"

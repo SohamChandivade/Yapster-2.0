@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,8 @@ class ScenarioOut(BaseModel):
     title: str
     blurb: str
     minutes: int
+    played: int = 0
+    last_played_at: datetime | None = None
 
 
 class SaveVocabRequest(BaseModel):

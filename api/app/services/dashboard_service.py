@@ -5,9 +5,15 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Correction, TalkSession, User, Vocab
+from app.db.models import Correction, Message, TalkSession, User, Vocab
 from app.scenarios import SCENARIOS, Scenario, get_scenario
-from app.schemas.dashboard import DashboardResponse, LastSession, NextSession, WeakSpot
+from app.schemas.dashboard import (
+    DashboardResponse,
+    LastSession,
+    NextSession,
+    OpenSession,
+    WeakSpot,
+)
 from app.schemas.users import UserOut
 
 WEEKLY_GOAL_MINUTES = 60
@@ -127,6 +133,35 @@ async def build_dashboard(db: AsyncSession, user: User) -> DashboardResponse:
             grammar_tag=tag_row.grammar_tag, count=int(tag_row.n), example_native=example
         )
 
+    # An unfinished conversation from the last day can be picked up again.
+    open_session: OpenSession | None = None
+    unfinished = (
+        await db.execute(
+            select(TalkSession)
+            .where(
+                TalkSession.user_id == user.id,
+                TalkSession.ended_at.is_(None),
+                TalkSession.started_at >= now - timedelta(hours=24),
+            )
+            .order_by(TalkSession.started_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if unfinished is not None:
+        turns = await db.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.session_id == unfinished.id, Message.role == "user")
+        )
+        sc = get_scenario(unfinished.scenario)
+        open_session = OpenSession(
+            session_id=unfinished.id,
+            scenario=sc.slug,
+            scenario_title=sc.title,
+            started_at=unfinished.started_at,
+            turns=int(turns or 0),
+        )
+
     return DashboardResponse(
         user=UserOut.model_validate(user, from_attributes=True),
         day=(now.date() - user.created_at.astimezone(UTC).date()).days + 1,
@@ -144,4 +179,5 @@ async def build_dashboard(db: AsyncSession, user: User) -> DashboardResponse:
             reason=reason,
         ),
         weak_spot=weak,
+        open_session=open_session,
     )

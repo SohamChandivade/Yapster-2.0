@@ -2,6 +2,7 @@
 the tutor's output is German only."""
 
 REGISTER_BY_LEVEL = {
+    "A0": "two to five words per sentence, only the most common words (hallo, ja, nein, bitte, danke, ich möchte), one question at a time that can be answered with yes/no or a single word, repeat the learner's words back warmly",
     "A1": "very short sentences, high-frequency words, mostly present tense, one idea per sentence",
     "A2": "short sentences, everyday vocabulary, simple past where natural, no nested clauses",
     "B1": "natural everyday German, some subordinate clauses, occasional idiom",
@@ -22,9 +23,10 @@ Rules:
 - Use what you know about the learner naturally; never recite it.
 {learner_facts}
 Output JSON only, exactly this shape, with "reply_de" as the FIRST key:
-{{"reply_de": string, "difficulty_signal": -1 | 0 | 1, "silent_corrections": [{{"you_said": string, "native": string, "why": string, "grammar_tag": string, "severity": 1 | 2 | 3}}], "new_vocab": [string]}}
+{{"reply_de": string, "reply_en": string, "difficulty_signal": -1 | 0 | 1, "silent_corrections": [{{"you_said": string, "native": string, "why": string, "grammar_tag": string, "severity": 1 | 2 | 3}}], "new_vocab": [string]}}
 
 - reply_de: your spoken reply, German only, no markdown.
+- reply_en: a natural English translation of reply_de. It is only shown if the learner asks for a hint; never put English in reply_de.
 - difficulty_signal: 1 if the learner handled the last turn easily, -1 if they clearly struggled, else 0.
 - silent_corrections: real errors in the learner's LAST message only (grammar, word choice, word order, missing words). "native" is how a native speaker would say that sentence. "why" is one short English sentence. grammar_tag is one of: dative, accusative, genitive, word_order, verb_conjugation, verb_position, article, preposition, plural, adjective_ending, vocabulary, spelling, register. Empty list if the message was fine or if it was the opening.
 - new_vocab: up to 3 useful German words or phrases from YOUR reply that a {level} learner may not know. Empty list if none."""
@@ -48,6 +50,14 @@ Output JSON only:
 - positives: 1-2 short English sentences naming concrete things the learner did well. Be specific, quote their German.
 - next_step: one English sentence with the single most useful thing to try next time.
 - new_words: up to 8 German words or phrases the learner met or produced that are worth saving, each with a short English gloss. Prefer words from the tutor's lines that the learner did not use yet."""
+
+HINT_SYSTEM = """A learner of German (level {level}) is mid-conversation in this situation: {scenario_script}
+They just heard the tutor's last line and may not understand it, or not know how to answer. Help them without taking over.
+Output JSON only: {{"translation": string, "suggestions": [{{"german": string, "english": string}}], "tip": string}}
+- translation: a natural English translation of the tutor's last line.
+- suggestions: exactly 3 different replies the learner could say next, in German, pitched at level {level} ({register}). Vary them: for example one short answer, one question back, one polite request. Each must be something a person would really say here.
+- english: the plain English meaning of each suggestion.
+- tip: one short English sentence saying what the tutor wants and how to reply (for example "She asked what you would like; start with 'Ich möchte …'")."""
 
 # Milestone 4
 MEMORY_EXTRACTION_SYSTEM = """Extract durable facts about the learner from this German practice transcript.

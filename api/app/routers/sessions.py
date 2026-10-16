@@ -18,6 +18,9 @@ from app.schemas.sessions import (
     DifficultyResponse,
     HelpRequest,
     HelpResponse,
+    HintRequest,
+    HintResponse,
+    HintSuggestion,
     RecapResponse,
     SessionState,
     StartSessionRequest,
@@ -44,9 +47,7 @@ async def start(
     body: StartSessionRequest, db: DB, user: CurrentUser, llm: LLM
 ) -> StartSessionResponse:
     try:
-        session, scenario, opening = await session_service.start_session(
-            db, user, body.scenario, llm
-        )
+        session, scenario, line = await session_service.start_session(db, user, body.scenario, llm)
     except LLMError as err:
         raise _unavailable(err) from err
     return StartSessionResponse(
@@ -54,7 +55,9 @@ async def start(
         scenario=scenario.slug,
         scenario_title=scenario.title,
         tutor_name=user.tutor_name,
-        opening=opening,
+        opening=line.text_de,
+        opening_en=line.text_en_hint or "",
+        opening_message_id=line.id,
         level=session_service.level_name(session.difficulty),
         difficulty=session.difficulty,
     )
@@ -78,7 +81,9 @@ async def state(session_id: uuid.UUID, db: DB, user: CurrentUser) -> SessionStat
         ended=session.ended_at is not None,
         correction_count=await count_corrections(db, session.id),
         transcript=[
-            TranscriptLine(id=m.id, role=m.role, text=m.text_de, assisted=m.assisted)
+            TranscriptLine(
+                id=m.id, role=m.role, text=m.text_de, text_en=m.text_en_hint, assisted=m.assisted
+            )
             for m in rows.scalars().all()
         ],
     )
@@ -122,6 +127,31 @@ async def discard(session_id: uuid.UUID, db: DB, user: CurrentUser) -> None:
         )
     await db.delete(session)
     await db.commit()
+
+
+@router.post("/{session_id}/hint", response_model=HintResponse)
+async def hint(
+    session_id: uuid.UUID, body: HintRequest, db: DB, user: CurrentUser, llm: LLM
+) -> HintResponse:
+    """What the tutor's line means and three things the learner could say next."""
+    session = await load_session(db, user, session_id)
+    try:
+        target, out = await session_service.hint(db, session, llm, body.message_id)
+    except LookupError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err)) from err
+    except LLMError as err:
+        raise _unavailable(err) from err
+    return HintResponse(
+        message_id=target.id,
+        tutor_line=target.text_de,
+        translation=out.translation.strip(),
+        suggestions=[
+            HintSuggestion(german=s.german.strip(), english=s.english.strip())
+            for s in out.suggestions
+            if s.german.strip()
+        ][:3],
+        tip=out.tip.strip(),
+    )
 
 
 @router.post("/{session_id}/help", response_model=HelpResponse)

@@ -14,6 +14,8 @@ class StartSessionResponse(BaseModel):
     scenario_title: str
     tutor_name: str
     opening: str
+    opening_en: str
+    opening_message_id: uuid.UUID
     level: str
     difficulty: int
 
@@ -26,6 +28,7 @@ class TurnRequest(BaseModel):
 class TurnDone(BaseModel):
     message_id: uuid.UUID
     reply_de: str
+    reply_en: str
     correction_count: int
     new_corrections: int
     difficulty: int
@@ -33,6 +36,25 @@ class TurnDone(BaseModel):
     new_vocab: list[str]
     provider: str
     model: str
+
+
+class HintRequest(BaseModel):
+    """Hint for a tutor line; omit message_id for the latest one."""
+
+    message_id: uuid.UUID | None = None
+
+
+class HintSuggestion(BaseModel):
+    german: str
+    english: str
+
+
+class HintResponse(BaseModel):
+    message_id: uuid.UUID
+    tutor_line: str
+    translation: str
+    suggestions: list[HintSuggestion]
+    tip: str
 
 
 class HelpRequest(BaseModel):
@@ -66,6 +88,7 @@ class TranscriptLine(BaseModel):
     id: uuid.UUID
     role: str
     text: str
+    text_en: str | None = None
     assisted: bool
 
 

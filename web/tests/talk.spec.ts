@@ -110,6 +110,109 @@ test.describe("Talk at 390×844", () => {
     await expect(page).toHaveURL(new RegExp(`/recap/${SID}$`));
   });
 
+  test("hint explains Lena's line, offers replies, and can keep English on", async ({ page }) => {
+    await page.goto("/talk?scenario=bakery");
+    const transcript = page.getByLabel("Transcript");
+    await expect(transcript).toContainText("Guten Morgen");
+    await expect(transcript.locator("[data-english]")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Hint for this line" }).click();
+    const sheet = page.getByRole("dialog", { name: "Hint" });
+    await expect(sheet).toContainText("Good morning! What can I get you?");
+    await expect(sheet.getByLabel("Suggested replies").getByRole("listitem")).toHaveCount(3);
+    await expect(sheet).toContainText("name one thing and add bitte");
+    await page.screenshot({ path: "test-results/talk-hint.png" });
+
+    await sheet.getByRole("switch", { name: /Show English/ }).click();
+    await expect(sheet.getByRole("switch", { name: /Show English/ })).toHaveAttribute("aria-checked", "true");
+
+    await sheet.getByRole("button", { name: "Use: Ein Brot, bitte." }).click();
+    await expect(sheet).toBeHidden();
+    await expect(transcript.locator("[data-role=user]")).toHaveText(["Ein Brot, bitte."]);
+    await expect(transcript).toContainText("Natürlich, hier ist eine Tüte.");
+    // Beginner mode: every tutor line now carries its English underneath.
+    await expect(transcript.locator("[data-english]")).toHaveText([
+      "Good morning! What can I get you?",
+      "Of course, here is a bag.",
+    ]);
+    await page.screenshot({ path: "test-results/talk-english.png" });
+  });
+
+  test("hint stays available on every tutor line and targets the right one", async ({ page }) => {
+    const hintBodies: string[] = [];
+    await page.route(`${API}/sessions/${SID}/hint`, (route) => {
+      hintBodies.push(route.request().postData() ?? "");
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          message_id: "m2",
+          tutor_line: "Gern, ein Roggenbrot. Soll ich es schneiden?",
+          translation: "Sure, a rye bread. Shall I slice it?",
+          suggestions: [{ german: "Ja, bitte.", english: "Yes, please." }],
+          tip: "She is offering to slice it; a yes or no is enough.",
+        }),
+      });
+    });
+    await page.goto("/talk?scenario=bakery");
+    const transcript = page.getByLabel("Transcript");
+    await expect(transcript).toContainText("Guten Morgen");
+    await expect(page.getByRole("button", { name: "Hint for this line" })).toHaveCount(1);
+
+    const input = page.getByLabel("Your message in German");
+    await input.fill("Ein Brot, bitte.");
+    await input.press("Enter");
+    await expect(transcript).toContainText("Soll ich es schneiden?");
+
+    // The newest line gets the prominent chip; the earlier one keeps a compact one.
+    await expect(page.getByRole("button", { name: "Hint for this line" })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Hint for an earlier line" })).toHaveCount(1);
+
+    await page.getByRole("button", { name: "Hint for this line" }).click();
+    const sheet = page.getByRole("dialog", { name: "Hint" });
+    await expect(sheet).toContainText("Sure, a rye bread. Shall I slice it?");
+    expect(JSON.parse(hintBodies[0])).toEqual({ message_id: "m2" });
+    await page.screenshot({ path: "test-results/talk-hint-second.png" });
+  });
+
+  test("a failed hint shows the error and can be retried", async ({ page }) => {
+    let calls = 0;
+    await page.route(`${API}/sessions/${SID}/hint`, (route) => {
+      calls += 1;
+      if (calls === 1) {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "The tutor is unavailable right now: quota" }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          message_id: "m0",
+          tutor_line: "Guten Morgen! Was darf es sein?",
+          translation: "Good morning! What can I get you?",
+          suggestions: [{ german: "Ein Brot, bitte.", english: "A bread, please." }],
+          tip: "Name one thing and add bitte.",
+        }),
+      });
+    });
+    await page.goto("/talk?scenario=bakery");
+    await expect(page.getByLabel("Transcript")).toContainText("Guten Morgen");
+
+    await page.getByRole("button", { name: "Hint for this line" }).click();
+    const sheet = page.getByRole("dialog", { name: "Hint" });
+    await expect(sheet.getByRole("alert")).toContainText("tutor is unavailable");
+    await sheet.getByRole("button", { name: "Try again" }).click();
+    await expect(sheet).toContainText("Good morning! What can I get you?");
+    await expect(sheet.getByRole("alert")).toHaveCount(0);
+    // The chip is still there for the next time.
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(page.getByRole("button", { name: "Hint for this line" })).toBeVisible();
+  });
+
   test("shows a retry state when the session cannot start", async ({ page }) => {
     await page.route(`${API}/sessions`, (route) =>
       route.fulfill({

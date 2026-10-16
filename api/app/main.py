@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db.engine import dispose_engine
 from app.http import close_http
 from app.origins import PRIVATE_ORIGIN_REGEX
-from app.routers import auth, dashboard, health, scenarios, sessions, users, vocab
+from app.routers import auth, dashboard, health, progress, scenarios, sessions, users, vocab
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(scenarios.router)
     app.include_router(vocab.router)
     app.include_router(dashboard.router)
+    app.include_router(progress.router)
     return app
 
 

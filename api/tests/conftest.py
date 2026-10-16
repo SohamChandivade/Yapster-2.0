@@ -26,9 +26,11 @@ from app.llm.types import CallInfo, LLMExhausted, ProviderSpec  # noqa: E402
 from app.main import app  # noqa: E402
 from app.schemas.llm_outputs import (  # noqa: E402
     HelpOut,
+    HintOut,
     NewWord,
     RecapOut,
     SilentCorrection,
+    Suggestion,
     TutorTurn,
 )
 
@@ -82,9 +84,12 @@ class FakeLLM:
         self.batch_chain = [ProviderSpec("mistral", "fake-batch")]
         self.calls: list[str] = []
         self.fail_stream = False
-        self.opening = TutorTurn(reply_de="Guten Morgen! Was darf es sein?")
+        self.opening = TutorTurn(
+            reply_de="Guten Morgen! Was darf es sein?", reply_en="Good morning! What can I get you?"
+        )
         self.turn = TutorTurn(
             reply_de="Gern, ein Roggenbrot. Soll ich es schneiden?",
+            reply_en="Sure, a rye bread. Shall I slice it?",
             difficulty_signal=1,
             silent_corrections=[
                 SilentCorrection(
@@ -98,6 +103,15 @@ class FakeLLM:
             new_vocab=["das Roggenbrot"],
         )
         self.help = HelpOut(german="Könnte ich bitte eine Tüte haben?", note="Polite conditional.")
+        self.hint = HintOut(
+            translation="Sure, a rye bread. Shall I slice it?",
+            suggestions=[
+                Suggestion(german="Ja, bitte.", english="Yes, please."),
+                Suggestion(german="Nein, am Stück, bitte.", english="No, whole, please."),
+                Suggestion(german="Was kostet das?", english="How much is it?"),
+            ],
+            tip="She is asking whether to slice the bread; a short yes or no is enough.",
+        )
         self.recap = RecapOut(
             fluency_score=62,
             summary="Du hast Brot gekauft.",
@@ -113,6 +127,8 @@ class FakeLLM:
         info = CallInfo("fake", "fake-model", 5, True, 10, 5)
         if schema is TutorTurn:
             return (self.opening if purpose == "opening" else self.turn), info
+        if schema is HintOut:
+            return self.hint, info
         if schema is HelpOut:
             return self.help, info
         return self.recap, info
