@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+/* ── Design tokens (CLAUDE.md §4). Light is the default theme. ────── */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Glow palette: warm is the default, cool is for stats and recap */
+  --glow-peach: #ffb38a;
+  --glow-amber: #ffd08a;
+  --glow-lilac: #c9b6ff;
+  --glow-rose: #ff9ec4;
+  --glow-sky: #9fc9ff;
+  --glow-mint: #b8e8d6;
+
+  --bg: #f7f5f2;
+  --ink: #1c1b1a;
+  --ink-muted: #8a8785;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --shadow: rgba(70, 50, 90, 0.16);
+
+  --radius-card: 28px;
+  --radius-pill: 999px;
+  --blur: 24px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e0e10;
+  --ink: #f3f1ee;
+  --ink-muted: #8e8b88;
+  --glass: rgba(28, 28, 32, 0.55);
+  --glass-strong: rgba(28, 28, 32, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* Expose tokens to Tailwind utilities: bg-bg, text-ink, rounded-card, … */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-peach: var(--glow-peach);
+  --color-amber: var(--glow-amber);
+  --color-lilac: var(--glow-lilac);
+  --color-rose: var(--glow-rose);
+  --color-sky: var(--glow-sky);
+  --color-mint: var(--glow-mint);
+
+  --radius-card: var(--radius-card);
+  --radius-pill: var(--radius-pill);
+
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI",
+    sans-serif;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────── */
+/* Background lives on <html> only, so the fixed Backdrop (z -10) paints above it. */
+html {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  overflow-x: clip;
+  transition: background-color 250ms ease-out, color 250ms ease-out;
+}
+
+body {
+  min-height: 100%;
+  overflow-x: clip;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Glass (depth from blur and a hairline highlight, barely any shadow) ── */
+@utility glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+  backdrop-filter: blur(var(--blur)) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 24px 48px -28px var(--shadow);
+}
+
+@utility glass-strong {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+  backdrop-filter: blur(var(--blur)) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 24px 48px -28px var(--shadow);
+}
+
+/* Small translucent chip, no shadow */
+@utility glass-chip {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+}
+
+/* ── Safe areas ───────────────────────────────────────────────────── */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────── */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Ambient motion: glows drift and breathe so the gradient never sits still ── */
+@keyframes drift-1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(7vw, -5vh, 0) scale(1.14);
+  }
+  66% {
+    transform: translate3d(-5vw, 6vh, 0) scale(0.92);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes drift-2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  30% {
+    transform: translate3d(-8vw, 4vh, 0) scale(0.9);
+  }
+  65% {
+    transform: translate3d(5vw, -7vh, 0) scale(1.16);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes drift-3 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  40% {
+    transform: translate3d(6vw, 6vh, 0) scale(1.1);
+  }
+  70% {
+    transform: translate3d(-7vw, -3vh, 0) scale(0.95);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.drift-1 {
+  animation: drift-1 26s ease-in-out infinite;
+  will-change: transform;
+}
+
+.drift-2 {
+  animation: drift-2 34s ease-in-out infinite;
+  will-change: transform;
+}
+
+.drift-3 {
+  animation: drift-3 42s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-1,
+  .drift-2,
+  .drift-3 {
+    animation: none;
+  }
+}
