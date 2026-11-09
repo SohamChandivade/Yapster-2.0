@@ -55,10 +55,17 @@ export function ProfileScreen() {
       <Backdrop variant="cool" />
 
       <header className="flex items-center justify-between">
-        <div className="glass-strong flex h-14 w-14 items-center justify-center rounded-full text-[18px] font-medium">
-          {name ? name[0].toUpperCase() : "·"}
-        </div>
-      </header>
+  <div className="glass-strong flex h-14 w-14 items-center justify-center overflow-hidden rounded-full text-[18px] font-medium">
+    {user?.avatar_url ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={user.avatar_url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+    ) : name ? (
+      name[0].toUpperCase()
+    ) : (
+      "·"
+    )}
+  </div>
+</header>
 
       <h1 className="mt-7 text-[34px] leading-[1.18] font-normal tracking-[-0.025em]">
         {name || "Profile"}

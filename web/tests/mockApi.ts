@@ -9,7 +9,7 @@ export const USER = {
   id: "u1",
   name: "Ujjwal",
   email: "ujjwal@example.com",
-  avatar_url: null,
+  avatar_url: null as string | null,
   onboarded: true,
   level: "B1",
   comfort: "awkward",
@@ -174,14 +174,18 @@ const json = (status: number, body: unknown) => ({
 });
 
 /** Route every API call the screens make to canned responses, and sign in unless told not to. */
-export async function mockApi(page: Page, opts: { session?: SessionKind } = {}): Promise<void> {
+
+export async function mockApi(
+  page: Page,
+  opts: { session?: SessionKind; user?: Partial<typeof USER> } = {},
+): Promise<void> {
   const session = opts.session ?? "onboarded";
   if (session !== "none") await signIn(page, session === "onboarded");
 
   await page.route(`${API}/me`, (route) =>
     route.fulfill(
       json(200, {
-        user: USER,
+        user: {...USER, ...opts.user},
         stats: { sessions: 3, minutes: 24.5, words_owned: 12, corrections: 7 },
       }),
     ),
